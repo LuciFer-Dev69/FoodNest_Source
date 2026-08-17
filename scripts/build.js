@@ -111,8 +111,24 @@ if (!fs.existsSync(frontendModules)) {
   runNpm(frontend, ["install"]);
 }
 
-console.log("==> Building frontend...");
-runNpm(frontend, ["run", "build"]);
+// IMPORTANT: invoke vite directly, never `npm run build` in frontend/. The
+// frontend's "build" script now redirects to THIS very script, so calling it
+// here would loop forever. Mark the recursion guard so the shim bails out
+// even if npm ever gets invoked through another path.
+console.log("==> Building frontend (with vite, directly)...");
+const viteBin = path.join(frontendModules, ".bin", "vite");
+if (!fs.existsSync(viteBin)) {
+  throw new Error(`vite binary not found at ${viteBin} – run npm install in frontend/ first.`);
+}
+const viteResult = spawnSync(process.execPath, [viteBin, "build"], {
+  cwd: frontend,
+  stdio: "inherit",
+  shell: false,
+  env: { ...process.env, __FOODNEST_UNIFIED_BUILD: "1" },
+});
+if (viteResult.status !== 0) {
+  throw new Error(`Frontend vite build failed (exit ${viteResult.status})`);
+}
 
 if (!fs.existsSync(entry)) {
   throw new Error(`Nitro output not found at ${entry} – frontend build may have failed.`);
