@@ -1,0 +1,1 @@
+import{a as e}from"./rolldown-runtime-CNC7AqOf.js";import{t}from"./react-9ZasmZpi.js";import{l as n}from"./index-CxKq_ndN.js";var r=e(t());function i(){let e=n();return(0,r.useEffect)(()=>{e({to:`/login`,search:{mode:`register`},replace:!0})},[e]),null}export{i as component};

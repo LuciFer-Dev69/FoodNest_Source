@@ -9,7 +9,7 @@
 // This is the fix for "POST /api/auth/register 404" after deploying to
 // Vercel: the previous deployment only shipped the frontend SSR server, and
 // the Express API never existed in production.
-import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,19 +44,75 @@ const frontend = path.join(root, "frontend");
 const funcDir = path.join(frontend, ".vercel", "output", "functions", "__server.func");
 const entry = path.join(funcDir, "index.mjs");
 
-// ---------------------------------------------------------------------------
-// Step 1 – build the frontend (Nitro vercel preset via vite build)
-// ---------------------------------------------------------------------------
 // Ensure frontend dependencies are installed. Vercel only installs root
 // dependencies by default, so `vite` would be missing here otherwise.
+// Run an npm command without a shell. Vercel's Node 24 build container does
+// not provide /bin/sh for shell-spawned children, so plain execSync('npm ...')
+// fails with ENOENT. We resolve the npm CLI JavaScript entrypoint and spawn
+// it directly with the same node process (shell: false).
+function runNpm(cwd, args) {
+  const candidates = [
+    path.join(cwd, "node_modules", "npm", "bin", "npm-cli.js"),
+    path.join(frontend, "node_modules", "npm", "bin", "npm-cli.js"),
+    path.join(root, "node_modules", "npm", "bin", "npm-cli.js"),
+  ];
+  // Prefer a .bin shim so the correct npm version/context is used.
+  const shims = [
+    path.join(cwd, "node_modules", ".bin", "npm"),
+    path.join(frontend, "node_modules", ".bin", "npm"),
+  ];
+  let npmBin = null;
+  for (const shim of shims) {
+    if (fs.existsSync(shim)) {
+      const target = fs.readlinkSync(shim);
+      const resolved = path.isAbsolute(target) ? target : path.resolve(path.dirname(shim), target);
+      if (fs.existsSync(resolved)) {
+        npmBin = resolved;
+        break;
+      }
+    }
+  }
+  if (!npmBin) {
+    for (const c of candidates) {
+      if (fs.existsSync(c)) {
+        npmBin = c;
+        break;
+      }
+    }
+  }
+  if (!npmBin) {
+    // No local npm package found (common with pnpm/berry installs that skip
+    // vendoring npm). Fall back to resolving the `npm` binary from PATH.
+    const pathEnv = process.env.PATH || "";
+    for (const dir of pathEnv.split(path.delimiter)) {
+      const binPath = path.join(dir, "npm");
+      if (fs.existsSync(binPath)) {
+        npmBin = binPath;
+        break;
+      }
+    }
+  }
+  if (!npmBin) {
+    throw new Error(`Could not locate an npm executable for "npm ${args.join(" ")}" in ${cwd}`);
+  }
+  const result = spawnSync(process.execPath, [npmBin, ...args], {
+    cwd,
+    stdio: "inherit",
+    shell: false,
+  });
+  if (result.status !== 0) {
+    throw new Error(`Command "npm ${args.join(" ")}" failed in ${cwd} (exit ${result.status})`);
+  }
+}
+
 const frontendModules = path.join(frontend, "node_modules");
 if (!fs.existsSync(frontendModules)) {
   console.log("==> Installing frontend dependencies first...");
-  execSync("npm install", { cwd: frontend, stdio: "inherit" });
+  runNpm(frontend, ["install"]);
 }
 
 console.log("==> Building frontend...");
-execSync("npm run build", { cwd: frontend, stdio: "inherit" });
+runNpm(frontend, ["run", "build"]);
 
 if (!fs.existsSync(entry)) {
   throw new Error(`Nitro output not found at ${entry} – frontend build may have failed.`);
@@ -65,6 +121,7 @@ if (!fs.existsSync(entry)) {
 // ---------------------------------------------------------------------------
 // Step 2 – patch the server entry to mount the Express backend
 // ---------------------------------------------------------------------------
+// (frontend build completed above)
 console.log("==> Patching Nitro server entry to mount the backend API...");
 
 const serverCode = fs.readFileSync(entry, "utf8");
