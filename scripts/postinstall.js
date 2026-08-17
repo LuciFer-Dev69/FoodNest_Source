@@ -6,7 +6,7 @@
 // when Vercel's "Build Command" setting still contains the old command or is
 // empty. If the frontend build artifact already exists and is patched, this
 // script exits quickly without rebuilding.
-import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,17 +25,37 @@ if (fs.existsSync(entry) && fs.readFileSync(entry, "utf8").includes("__foodnest_
 // Install the frontend dependencies ourselves if they are missing. Vercel
 // installs root dependencies first, then runs the root postinstall hook
 // before it has installed frontend/node_modules – without this, the frontend
-// build would fail with `vite: not found`.
+// build would fail with `vite: not found`. Run npm directly (no shell) –
+// Vercel's Node 24 container does not provide /bin/sh for shell spawns.
+function runNpmNoShell(cwd, args) {
+  const npmCli = path.join(
+    cwd,
+    "node_modules",
+    "npm",
+    "bin",
+    "npm-cli.js",
+  );
+  const npmBin = fs.existsSync(npmCli) ? npmCli : "npm";
+  return spawnSync(npmBin, args, { cwd, stdio: "inherit", shell: false });
+}
+
 const frontend = path.join(root, "frontend");
 const frontendModules = path.join(frontend, "node_modules");
 if (!fs.existsSync(frontendModules)) {
   console.log("[postinstall] Installing frontend dependencies first...");
-  execSync("npm install", { cwd: frontend, stdio: "inherit" });
+  runNpmNoShell(frontend, ["install"]);
 }
 
 console.log("[postinstall] Running unified build (frontend + backend API)...");
 try {
-  execSync("node scripts/build.js", { cwd: root, stdio: "inherit" });
+  const r = spawnSync(process.execPath, [path.join(root, "scripts", "build.js")], {
+    cwd: root,
+    stdio: "inherit",
+    shell: false,
+  });
+  if (r.status !== 0 && r.status !== null) {
+    console.error("[postinstall] Unified build failed with exit", r.status);
+  }
 } catch (err) {
   console.error("[postinstall] Unified build failed:", err.message);
   // Non-fatal: Vercel may still run its own build command afterwards.

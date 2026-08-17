@@ -44,6 +44,20 @@ const frontend = path.join(root, "frontend");
 const funcDir = path.join(frontend, ".vercel", "output", "functions", "__server.func");
 const entry = path.join(funcDir, "index.mjs");
 
+// Always start from a clean server build. Vercel may restore a cached
+// .vercel/output tree ("Using prebuilt build artifacts"); vite's Nitro
+// environment build regenerates it, but an incomplete cache or a prior
+// failed patch can leave stale pieces behind. Removing only the parts we
+// own (server func + backend symlink) keeps static assets cached and fast.
+if (fs.existsSync(funcDir)) {
+  console.log("==> Cleaning previous server function output...");
+  fs.rmSync(funcDir, { recursive: true, force: true });
+}
+const backendSym = path.resolve(funcDir, "..", "..", "..", "backend");
+if (fs.existsSync(backendSym)) {
+  fs.rmSync(backendSym, { recursive: true, force: true });
+}
+
 // Ensure frontend dependencies are installed. Vercel only installs root
 // dependencies by default, so `vite` would be missing here otherwise.
 // Run an npm command without a shell. Vercel's Node 24 build container does
