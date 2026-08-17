@@ -23,6 +23,14 @@ const entry = path.join(funcDir, "index.mjs");
 // ---------------------------------------------------------------------------
 // Step 1 – build the frontend (Nitro vercel preset via vite build)
 // ---------------------------------------------------------------------------
+// Ensure frontend dependencies are installed. Vercel only installs root
+// dependencies by default, so `vite` would be missing here otherwise.
+const frontendModules = path.join(frontend, "node_modules");
+if (!fs.existsSync(frontendModules)) {
+  console.log("==> Installing frontend dependencies first...");
+  execSync("npm install", { cwd: frontend, stdio: "inherit" });
+}
+
 console.log("==> Building frontend...");
 execSync("npm run build", { cwd: frontend, stdio: "inherit" });
 
