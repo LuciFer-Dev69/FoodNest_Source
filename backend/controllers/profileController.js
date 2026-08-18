@@ -13,11 +13,8 @@ import Bookmark from "../models/Bookmark.js";
 import Like from "../models/Like.js";
 import Report from "../models/Report.js";
 import FavoriteRecipe from "../models/FavoriteRecipe.js";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { fileToDataUri } from "../middleware/upload.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = process.env.JWT_SECRET || "default_jwt_secret_key";
 
 function generateToken(user) {
@@ -414,7 +411,8 @@ export async function uploadAvatar(req, res) {
       return res.status(400).json({ message: "No image file provided" });
     }
 
-    const profilePicture = `/uploads/${req.file.filename}`;
+    // Convert the in-memory buffer to a base64 data URI (Vercel-compatible)
+    const profilePicture = fileToDataUri(req.file);
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
@@ -449,13 +447,7 @@ export async function removeAvatar(req, res) {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (user.profilePicture) {
-      const fileName = path.basename(user.profilePicture);
-      const oldPath = path.join(__dirname, "..", "uploads", fileName);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
-    }
+    // Avatar is stored as a base64 data URI in MongoDB — no disk file to delete
 
     user.profilePicture = null;
     await user.save();

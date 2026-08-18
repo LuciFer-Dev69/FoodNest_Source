@@ -3,6 +3,7 @@ import CommunityPost from "../models/CommunityPost.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import mongoose from "mongoose";
+import { fileToDataUri } from "../middleware/upload.js";
 
 const VALID_SORT = ["createdAt", "-createdAt", "foodName", "-foodName", "quantity", "-quantity", "expirationDate", "-expirationDate"];
 
@@ -194,7 +195,7 @@ export async function createDonation(req, res) {
   }
 
   try {
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    const image = req.file ? fileToDataUri(req.file) : null;
 
     let parsedPickupLocation = { latitude: null, longitude: null, address: "", country: "", city: "" };
     if (pickupLocation) {
@@ -302,7 +303,7 @@ export async function updateDonation(req, res) {
     if (pickupLocation !== undefined) updates["pickupLocation"] = getPL(pickupLocation);
 
     if (req.file) {
-      updates.image = `/uploads/${req.file.filename}`;
+      updates.image = fileToDataUri(req.file);
     }
 
     const updated = await Donation.findByIdAndUpdate(req.params.id, { $set: updates }, { returnDocument: 'after' })

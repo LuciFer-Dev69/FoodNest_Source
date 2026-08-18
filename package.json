@@ -2,7 +2,10 @@
   "name": "foodnest",
   "version": "1.0.0",
   "private": true,
-  "description": "FoodNest \u2013 Smart Food Sustainability & Donation Platform (frontend + API)",
+  "description": "FoodNest – Smart Food Sustainability & Donation Platform (frontend + API)",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "node scripts/build.js",
     "postinstall": "node scripts/postinstall.js"

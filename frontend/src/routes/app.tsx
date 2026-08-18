@@ -4,8 +4,11 @@ import { getStoredToken } from "@/lib/auth-storage";
 
 export const Route = createFileRoute("/app")({
   beforeLoad: () => {
-    const token =
-      typeof window !== "undefined" ? getStoredToken() : null;
+    // Skip auth check on the server — localStorage is unavailable during SSR.
+    // The client will handle the redirect on hydration if the token is missing.
+    if (typeof window === "undefined") return;
+
+    const token = getStoredToken();
     if (!token) {
       throw redirect({ to: "/login", replace: true });
     }

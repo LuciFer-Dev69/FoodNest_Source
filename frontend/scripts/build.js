@@ -19,7 +19,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 if (process.env.__FOODNEST_UNIFIED_BUILD === "1") {
   console.log("[frontend/scripts/build.js] Unified build already in control – delegating to vite.");
   execFileSync(process.execPath, [path.join(here, "..", "node_modules", ".bin", "vite"), "build"], {
-    cwd: here,
+    cwd: path.join(here, ".."), // must be frontend/, not frontend/scripts/
     stdio: "inherit",
   });
   process.exit(0);

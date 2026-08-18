@@ -23,8 +23,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+// ── CORS ────────────────────────────────────────────────────────────────────
+// In production, restrict to the deployed Vercel URL (set FRONTEND_URL env var).
+// In development, allow all origins so `localhost:8080` works without extra config.
+const allowedOrigins = process.env.FRONTEND_URL
+  ? [process.env.FRONTEND_URL, /\.vercel\.app$/]
+  : true; // allow all in dev
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 

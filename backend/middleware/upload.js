@@ -1,23 +1,11 @@
 import multer from "multer";
 import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, "..", "uploads");
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    const prefix = file.fieldname === "avatar" ? "avatar" : "inv";
-    cb(null, `${prefix}-${uniqueSuffix}${ext}`);
-  },
-});
+// ── Memory storage (Vercel-compatible) ──────────────────────────────────────
+// Vercel's serverless runtime has a read-only filesystem, so we cannot use
+// diskStorage. Files are held in memory (req.file.buffer) and converted to
+// base64 data URIs for storage in MongoDB.
+const storage = multer.memoryStorage();
 
 const fileFilter = (_req, file, cb) => {
   const allowed = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4", ".mov", ".webm"];
@@ -32,20 +20,19 @@ const fileFilter = (_req, file, cb) => {
 export const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
-
-const communityFilePrefix = (_req, file, cb) => {
-  const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-  const ext = path.extname(file.originalname);
-  cb(null, `post-${uniqueSuffix}${ext}`);
-};
 
 export const communityUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: communityFilePrefix,
-  }),
+  storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
+
+// ── Helper: convert an uploaded file buffer to a base64 data URI ─────────────
+// Controllers call this instead of using req.file.filename.
+export function fileToDataUri(file) {
+  if (!file || !file.buffer) return null;
+  const base64 = file.buffer.toString("base64");
+  return `data:${file.mimetype};base64,${base64}`;
+}

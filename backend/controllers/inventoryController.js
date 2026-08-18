@@ -1,6 +1,7 @@
 import Inventory from "../models/Inventory.js";
 import Notification from "../models/Notification.js";
 import mongoose from "mongoose";
+import { fileToDataUri } from "../middleware/upload.js";
 
 const VALID_SORT_FIELDS = ["foodName", "category", "quantity", "expirationDate", "createdAt", "-foodName", "-category", "-quantity", "-expirationDate", "-createdAt"];
 
@@ -147,7 +148,7 @@ export async function createItem(req, res) {
   }
 
   try {
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    const image = req.file ? fileToDataUri(req.file) : null;
 
     const doc = await Inventory.create({
       userId: req.user.id,
@@ -219,7 +220,7 @@ export async function updateItem(req, res) {
     }
 
     if (req.file) {
-      updates.image = `/uploads/${req.file.filename}`;
+      updates.image = fileToDataUri(req.file);
     }
 
     const doc = await Inventory.findOneAndUpdate(

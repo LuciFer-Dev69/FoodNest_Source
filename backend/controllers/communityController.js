@@ -1,6 +1,4 @@
 import mongoose from "mongoose";
-import fs from "fs";
-import path from "path";
 import { fileURLToPath } from "url";
 import CommunityPost from "../models/CommunityPost.js";
 import Comment from "../models/Comment.js";
@@ -12,8 +10,7 @@ import Achievement from "../models/Achievement.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
 import Donation from "../models/Donation.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { fileToDataUri } from "../middleware/upload.js";
 
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -83,7 +80,7 @@ export async function createPost(req, res) {
       inventoryItemIds = req.body.inventoryItemIds ? (typeof req.body.inventoryItemIds === "string" ? JSON.parse(req.body.inventoryItemIds) : req.body.inventoryItemIds) : [];
 
       for (const file of req.files) {
-        const url = `/uploads/${file.filename}`;
+        const url = fileToDataUri(file);
         if (file.mimetype.startsWith("video/")) {
           videos.push(url);
         } else {
@@ -238,7 +235,7 @@ export async function updatePost(req, res) {
       }
       if (req.files.length > 0) {
         for (const file of req.files) {
-          const url = `/uploads/${file.filename}`;
+          const url = fileToDataUri(file);
           if (file.mimetype.startsWith("video/")) {
             if (!post.videos.includes(url)) post.videos.push(url);
           } else {
@@ -252,18 +249,12 @@ export async function updatePost(req, res) {
       if (req.body.removeImages) {
         const toRemove = typeof req.body.removeImages === "string" ? JSON.parse(req.body.removeImages) : req.body.removeImages;
         post.images = post.images.filter((img) => !toRemove.includes(img));
-        for (const imgPath of toRemove) {
-          const filePath = path.join(__dirname, "..", imgPath);
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        }
+        // Note: files are stored as base64 in MongoDB, no disk cleanup needed
       }
       if (req.body.removeVideos) {
         const toRemove = typeof req.body.removeVideos === "string" ? JSON.parse(req.body.removeVideos) : req.body.removeVideos;
         post.videos = post.videos.filter((v) => !toRemove.includes(v));
-        for (const vPath of toRemove) {
-          const filePath = path.join(__dirname, "..", vPath);
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        }
+        // Note: files are stored as base64 in MongoDB, no disk cleanup needed
       }
     } else {
       const allowed = ["title", "content", "category", "images", "videos", "tags", "location", "pickupAvailable", "visibility"];
